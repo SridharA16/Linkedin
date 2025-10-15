@@ -207,31 +207,49 @@ export default function CreatePost() {
           statusText: response.statusText,
           url: response.url
         });
-        throw new Error("Failed to generate post");
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
-      const result = await response.json();
-      console.log("✅ Parsed response:", result);
-      
-      setGeneratedPost(result.content || "Generated post content will appear here...");
-      setEditedPost(result.content || "");
+
+      const responseText = await response.text();
+      console.log("📄 Raw response text:", responseText);
+
+      if (!responseText || responseText.trim() === '') {
+        console.error("❌ Empty response from webhook");
+        throw new Error("Webhook returned an empty response. Please check your n8n workflow configuration.");
+      }
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+        console.log("✅ Parsed response:", result);
+      } catch (parseError) {
+        console.error("❌ JSON parse error:", parseError);
+        throw new Error("Invalid JSON response from webhook. Please check your n8n workflow output.");
+      }
+
+      if (!result.content) {
+        console.error("❌ Missing 'content' field in response:", result);
+        throw new Error("Webhook response is missing 'content' field. Please ensure your n8n workflow returns {\"content\": \"your generated text\"}");
+      }
+
+      setGeneratedPost(result.content);
+      setEditedPost(result.content);
       toast({
         title: "Post Generated Successfully!",
         description: "Your LinkedIn post is ready to review"
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ Error generating post:", error);
       console.error("Error details:", {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        cause: error.cause
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack,
+        cause: error?.cause
       });
-      
-      // Additional network debugging
+
       toast({
         title: "Generation Failed",
-        description: "Failed to generate post. Please check your webhook URL and try again.",
+        description: error?.message || "Failed to generate post. Please check your webhook URL and try again.",
         variant: "destructive"
       });
     } finally {
@@ -284,24 +302,40 @@ export default function CreatePost() {
       });
       
       if (!response.ok) {
-        throw new Error("Failed to resubmit");
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
-      const result = await response.json();
-      console.log("✅ Resubmit result:", result);
-      
-      setGeneratedPost(result.content || "Updated post content will appear here...");
-      setEditedPost(result.content || "");
+
+      const responseText = await response.text();
+      console.log("📄 Resubmit raw response:", responseText);
+
+      if (!responseText || responseText.trim() === '') {
+        throw new Error("Webhook returned an empty response. Please check your n8n workflow configuration.");
+      }
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+        console.log("✅ Resubmit result:", result);
+      } catch (parseError) {
+        throw new Error("Invalid JSON response from webhook. Please check your n8n workflow output.");
+      }
+
+      if (!result.content) {
+        throw new Error("Webhook response is missing 'content' field. Please ensure your n8n workflow returns {\"content\": \"your generated text\"}");
+      }
+
+      setGeneratedPost(result.content);
+      setEditedPost(result.content);
       setChangeRequest("");
       toast({
         title: "Post Updated Successfully!",
         description: "Your post has been refined based on your feedback"
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error resubmitting:", error);
       toast({
         title: "Update Failed",
-        description: "Failed to update post. Please try again.",
+        description: error?.message || "Failed to update post. Please try again.",
         variant: "destructive"
       });
     } finally {
